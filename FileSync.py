@@ -4,10 +4,13 @@ Basic File Sync v0.1.0
 Description:
 Cross-platform File Sync program that copies source file to the desination file when changes are detected.
 This is a hugely basic, quickly written version that needs some serious improving.  It's currently limited to working
-only with single files.  It may work with multiples, but I haven't tested/handled this behaviour.
+only with single files.
 
-In future I hope to support: Multiple to & from files, "start when machine starts" option, menu for saving and loading conifiguration
-and an ppliacation maintained user accessible log.
+In future I hope to support:
+ - Multiple to & from files 
+ - menu for saving and loading conifiguration and an ppliacation
+ - maintained, user accessible log.
+ - Support for directories
 
 Author:
 James Barnden
@@ -56,6 +59,10 @@ class FileEventHandler(PatternMatchingEventHandler):
             self.status_text.set(updateString)
 
 class Application(tk.Frame):
+    """
+    Main application class
+    """
+
     def __init__(self, master=None):
         """
         Initializes application variables, creates GUI widgets, and loads config (if detected)
@@ -90,12 +97,9 @@ class Application(tk.Frame):
         self.to_path_entry["textvariable"] = toTxt
         toTxt.set(self.to_path)
 
-        v = tk.IntVar()
-        import pdb; pdb.set_trace()
-        v.set(self.config["sync_when_start"])
-
-        self.sync_when_start = v
-        if self.sync_when_start:
+        self.sync_when_start.set(config["sync_when_start"])
+        self.auto_sync.variable = self.sync_when_start
+        if self.sync_when_start.get():
             self.start_sync()
 
     def save_config(self, path):
@@ -107,8 +111,8 @@ class Application(tk.Frame):
             "to_path": self.to_path,
             "sync_when_start": self.sync_when_start.get()
         }
-        import pdb; pdb.set_trace()
         pickle.dump(config, open(path, "wb"))
+        self.status_text.set("Configuration saved")
 
     def create_widgets(self):
         """
@@ -116,8 +120,8 @@ class Application(tk.Frame):
         """
         rowNo = 0
 
-        auto_sync = tk.Checkbutton(self, text="Start Syncing when app starts", variable=self.sync_when_start)
-        auto_sync.grid(column=0, row=rowNo)
+        self.auto_sync = tk.Checkbutton(self, text="Start Syncing when app starts", variable=self.sync_when_start)
+        self.auto_sync.grid(column=0, row=rowNo)
         rowNo+=1
 
         lbl_from_path = tk.Label(self, text="From path: ")
@@ -127,8 +131,8 @@ class Application(tk.Frame):
         self.from_path_entry = tk.Entry(self, width="50", state='disabled')
         self.from_path_entry.grid(column=0, row=rowNo)
 
-        self.from_browse = tk.Button(self, text="...", command = lambda: self.store_path('from'))
-        self.from_browse.grid(column=1, row=rowNo)
+        self.btn_from_browse = tk.Button(self, text="...", command = lambda: self.store_path('from'))
+        self.btn_from_browse.grid(column=1, row=rowNo)
         rowNo+=1
 
         lbl_to_path = tk.Label(self, text="To path: ")
@@ -138,8 +142,8 @@ class Application(tk.Frame):
         self.to_path_entry = tk.Entry(self, width="50", state='disabled')
         self.to_path_entry.grid(column=0, row=rowNo)
 
-        self.to_browse = tk.Button(self, text="...", command=lambda: self.store_path('to'))
-        self.to_browse.grid(column=1, row=rowNo)
+        self.btn_to_browse = tk.Button(self, text="...", command=lambda: self.store_path('to'))
+        self.btn_to_browse.grid(column=1, row=rowNo)
         rowNo+=1
 
         self.lbl_status = tk.Label(self, text="Status: ")
@@ -150,20 +154,20 @@ class Application(tk.Frame):
         self.status_box.grid(column=0, row=rowNo)
         rowNo+=1
 
-        self.start_sync = tk.Button(self, text="Start Sync", fg="green", command=self.start_sync)
-        self.start_sync["state"] = "active"
-        self.start_sync.grid(column=0, row=rowNo)
+        self.btn_start_sync = tk.Button(self, text="Start Sync", fg="green", command=self.start_sync)
+        self.btn_start_sync["state"] = "active"
+        self.btn_start_sync.grid(column=0, row=rowNo)
 
-        self.stop_sync = tk.Button(self, text="Stop Sync", command=self.stop_sync)
-        self.stop_sync["state"] = "disabled"
-        self.stop_sync.grid(column=1, row=rowNo)
+        self.btn_stop_sync = tk.Button(self, text="Stop Sync", command=self.stop_sync)
+        self.btn_stop_sync["state"] = "disabled"
+        self.btn_stop_sync.grid(column=1, row=rowNo)
 
-        self.save = tk.Button(self, text="Save", command=lambda: self.save_config(self.default_config_path))
-        self.save.grid(column=3, row=rowNo)
+        self.btn_save = tk.Button(self, text="Save", command=lambda: self.save_config(self.default_config_path))
+        self.btn_save.grid(column=3, row=rowNo)
 
-        self.quit = tk.Button(self, text="Quit", fg="red",
+        self.btn_quit = tk.Button(self, text="Quit", fg="red",
                               command=self.master.destroy)
-        self.quit.grid(column=2, row=rowNo)
+        self.btn_quit.grid(column=2, row=rowNo)
 
     def store_path(self, from_or_to):
         """
@@ -192,7 +196,7 @@ class Application(tk.Frame):
         if not self.validate_input(): return
 
         print("Start sync from: '", self.from_path, "', to '", self.to_path, "'")
-        self.start_sync["state"] = "disabled"
+        self.btn_start_sync["state"] = "disabled"
         
         # Set up FileEventHandler
         e_h = FileEventHandler(to_file=self.to_path, from_file=self.from_path, status_text=self.status_text, patterns=self.from_path)
@@ -203,10 +207,10 @@ class Application(tk.Frame):
         self.observer = Observer()
         self.observer.schedule(e_h, basePath)
         self.observer.start()
-        self.status_text.set("Starting listener")
+        self.status_text.set("Started Listener succesfully...")
 
 
-        self.stop_sync["state"] = "active"
+        self.btn_stop_sync["state"] = "active"
 
     def validate_input(self):
         """
@@ -232,18 +236,23 @@ class Application(tk.Frame):
             print("To path must be a valid directory")
             self.status_text.set("To path must be a valid directory")
             return False
+        if os.path.isdir(self.from_path) or os.path.isdir(self.to_path):
+            print("Basic File Sync currently doesn't support syncing whole directories.")
+            self.status_text.set("Basic File Sync currently doesn't support syncing whole directories.")
+            return False
         
         return True
 
     def stop_sync(self):
         print("Stop sync")
-        self.stop_sync["state"] = "disabled"
+        self.btn_stop_sync["state"] = "disabled"
 
         # Stop observer
         self.observer.stop()
         print("Observer stopped")
 
-        self.start_sync["state"] = "active"
+        self.btn_start_sync["state"] = "active"
+        self.status_text.set("Listener stopped.")
 
 root = tk.Tk()
 app = Application(master=root)
