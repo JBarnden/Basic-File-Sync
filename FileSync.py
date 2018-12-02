@@ -2,15 +2,14 @@
 Basic File Sync v0.1.0
 
 Description:
-Cross-platform File Sync program that copies source file (from file) to the destination file (to file) when changes are detected.
+Cross-platform File Sync program that copies source file/directory (from file) to the destination file/directory (to file) when changes are detected.
 This is a hugely basic, quickly written version that needs some serious improving.  It's currently limited to working
-only with single files.
+only with single files or directories.
 
 In future I hope to support:
 - Multiple to & from files 
 - menu for saving and loading configuration and an application
 - maintained, user accessible log.
-- Support for directories
 
 Author:
 James Barnden
@@ -23,6 +22,7 @@ MIT
 import os
 from shutil import copyfile
 from shutil import Error as shutilError
+from distutils.dir_util import copy_tree
 import tkinter as tk
 from tkinter import filedialog
 from watchdog.events import PatternMatchingEventHandler
@@ -50,9 +50,15 @@ class FileEventHandler(PatternMatchingEventHandler):
         """
         try:
             print("Change detected copying file")
-            copyfile(self.from_file, self.to_file)
             updateString = "Change detected, files synced: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            self.status_text.set(updateString)
+            if os.path.isfile(self.from_file) and os.path.isfile(self.to_file):
+                # We're working with files, Update to_file
+                copyfile(self.from_file, self.to_file)
+                self.status_text.set(updateString)
+            elif os.path.isdir(self.from_file) and os.path.isdir(self.to_file):
+                # We're working with directories, Update to_file
+                copy_tree(self.from_file, self.to_file)
+                self.status_text.set(updateString)
         except(shutilError, OSError, IOError):
             print("Failed to copy file")
             updateString = "Failed to copy file: " + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -214,34 +220,37 @@ class Application(tk.Frame):
 
     def validate_input(self):
         """
-        Returns true if input is valid
+        Returns True if input is valid
         """
-        if self.from_path == '' or self.to_path == '':
-            print("You must set both two and from paths")
-            self.status_text.set("You must set both two and from paths")
-            return False
-        if self.from_path == self.to_path:
-            print("To and from paths were equal")
-            self.status_text.set("To and from paths were equal")
-            return False
-        
+        errorString = ""
+        valid = True
+
         frm_path, frm_filename = os.path.split(self.from_path)
         t_path, t_filename = os.path.split(self.to_path)
 
+        if self.from_path == '' or self.to_path == '':
+            errorString = "You must set both two and from paths"
+            valid = False
+        if self.from_path == self.to_path:
+            print("To and from paths were equal")
+            self.status_text.set("To and from paths were equal")
+            valid = False
         if not os.path.isdir(frm_path):
-            print("From path must be a valid directory")
-            self.status_text.set("From path must be a valid directory")
-            return False
+            errorString = "From path must be a valid directory"
+            valid = False
         if not os.path.isdir(t_path):
-            print("To path must be a valid directory")
-            self.status_text.set("To path must be a valid directory")
-            return False
-        if os.path.isdir(self.from_path) or os.path.isdir(self.to_path):
-            print("Basic File Sync currently doesn't support syncing whole directories.")
-            self.status_text.set("Basic File Sync currently doesn't support syncing whole directories.")
-            return False
+            errorString = "To path must be a valid directory"
+            valid = False
+        if os.path.isfile(frm_filename) and frm_filename != t_filename:
+            errorString = "To and from files must have the same name"
+        if os.path.isdir(self.from_path) and os.path.isdir(self.to_path) \
+            and os.path.basename(os.path.normpath(self.from_path)) != os.path.basename(os.path.normpath(self.to_path)):
+            errorString = "To and from directories must have the same name"
+            valid = False
         
-        return True
+        print(errorString)
+        self.status_text.set(errorString)
+        return valid
 
     def stop_sync(self):
         print("Stop sync")
